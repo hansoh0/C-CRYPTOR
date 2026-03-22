@@ -1,1 +1,3 @@
 A file & directory encryptor written in C. This cryptor uses AES256 and encrypts files by bytes, allowing for encryption of many different types of files. created by @hansoh0 (https://www.github.com/hansoh0)
+
+WORK IN PROGRESS
