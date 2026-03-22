@@ -1,0 +1,2 @@
+This text will be encrypted & decrypted
+Other test files may fail for quirks documented in /src/main.c
