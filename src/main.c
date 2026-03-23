@@ -64,6 +64,146 @@ static int derive_key(const char *secret, const unsigned char *salt, unsigned ch
        return PKCS5_PBKDF2_HMAC(secret, (int)strlen(secret), salt, SALT_LEN, PBKDF2_ITR, EVP_sha256(), KEY_LEN, key_out); 
 }
 
+/*
+ * Structure that holds an array of file paths, how many paths are stored, and how many paths can be held before growth
+ */
+typedef struct {
+	char **paths;
+	int count;
+	int capacity;
+} FileList;
+
+/*
+ * Initializes the list with a capacity of 64 paths, 
+ * 0 paths in the list, and the allocated memory for the array of thats is the
+ * size of 64 distinct pointers (the malloc is confirmed by returning 0(success) or -1(failure)
+ */
+static int fl_init(FileList *fl) {
+	fl->capacity = 64;
+	fl->count = 0;
+	fl->paths = malloc(fl->capacity * sizeof(char *));
+	return fl->paths ? 0 : -1;
+}
+
+/*
+ * fl_push():
+ * Adds a new path the the list
+ * if capacity is met, increase capacity by doubling it, 
+ * resize the memory allocation of the array while maintaining element by
+ * reallocating memory to be the capacity * 1 pointer, 
+ * if the realloc fails return -1, finallys updates the fl pointer to new memory
+ *
+ * Copy string into heap, and allocate memory for that string, if failed, return -1. 
+ * Update count to account for one more element
+ * added. Return 0 for success.
+ */
+static int fl_push(FileList *fl, const char *path) {
+	if (fl->count == fl->capacity) {
+		fl->capacity *= 2;
+		char **tmp = realloc(fl->paths, fl->capacity * sizeof(char *));
+		if (!tmp) return -1;
+		fl->paths = tmp;
+	}
+	fl->paths[fl->count] = strdup(path);
+	if (!fl->paths[fl->count]) return -1;
+	fl->count++;
+	return 0;
+}
+
+/*
+ * fl_free():
+ * Cleanup file list
+ * Free element 1 by 1 in paths,
+ * then free the defined (now empty) array and update count and capacity to 0.
+ * Resets FileList structure
+ */
+static void fl_free(FileList *fl) {
+	for (int i = 0; i < fl->count; i++) free(fl->paths[i]);
+	free(fl->paths);
+	fl->count = fl->capacity = 0;
+}
+
+/*
+ * walk():
+ * Recursively walks a directory tree and collects file paths
+ *
+ * First it opens the directory and represents each item inside as a structure
+ * then the full path is stored
+ *
+ * then ewe loop through each entry in the specified directory, skipping . and ..
+ * for the remaining elements it builds the full location path of those elements relative to the base_path
+ * then it checks for encoding errors or if the path is too long and skips them
+ *
+ * continuing the structure stat holds information long listed from the file - dir or file, permissions, size
+ * if its a directory (st.st_mode ISDIR), recurse,
+ * else, add it to the list of files
+ *
+ * at the end close the directory and return 0
+ */
+static int walk(const char *start_path, FileList *fl) {
+	DIR *dir = opendir(start_path);
+	if (!dir) {
+		perror(start_path);
+		return -1;
+	}
+
+	struct dirent *entry;
+	char path[MAX_PATH];
+
+	while ((entry = readdir(dir)) != NULL) {
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+		int n = snprintf(path, sizeof(path), "%s/%s", start_path, entry->d_name);
+		if (n < 0 || n >= (int)sizeof(path)) {
+			fprintf(stderr, "Path too long, skipping: %s/%s\n", start_path, entry->d_name);
+			continue;
+		}
+
+		struct stat st;
+		if (stat(path, &st) != 0) {
+			perror(path);
+			continue;
+		}
+
+		if (S_ISDIR(st.st_mode)) {
+			if (walk(path, fl) != 0) {
+				closedir(dir);
+				return -1;
+			}
+		} else if (S_ISREG(st.st_mode)) {
+			if (fl_push(fl, path) != 0) {
+				closedir(dir);
+				return -1;
+			}
+		}
+	}
+	closedir(dir);
+	return 0;
+}
+
+/*
+ * collect_files():
+ * Adds full path of file to FileList
+ * If directory, it drills down
+ */
+static int collect_files(const char *path, FileList *fl) {
+	struct stat st;
+	if (stat(path, &st) != 0) {
+		perror(path);
+		return -1;
+	}
+
+	if (S_ISREG(st.st_mode)) {
+		return fl_push(fl, path);
+	} else if (S_ISDIR(st.st_mode)) {
+		return walk(path, fl);
+	}
+
+	fprintf(stderr, "%s is not a file or directory\n", path);
+	return -1;
+}
+
+
 /* Buffer encryption AES-256-CBC
  * Buffer is padded to AES_BLOCK_SIZE
  * IV is modified during this phase so storage of IV must happen before this
@@ -96,3 +236,4 @@ unsigned char *decryptBuffer(unsigned char *buffer, long len, unsigned char *key
 
 int main(int argc, char *argv[]) {
 }
+
