@@ -252,6 +252,42 @@ static int get_salt(const char *hex, unsigned char *salt) {
 	return 0;
 }
 
+/*
+ * zero_file();
+ * char input_path: the path of the file thats going to be zero'd and removed
+ * long filelen: the length of input_path file
+ * 
+ * replaces bytes in given file with all zeros & deletes it from filesystem
+ * thwarts forensic attempts to recover the original file
+ */
+static int zero_file(const char *input_path, long filelen) {
+	FILE *fp = fopen(input_path, "r+b");
+	if !(fp) return -1;
+		
+	// Write zeros over entire file contents
+	unsigned char zero_buf[4096] = {0};
+	long therest = filelen;
+	while (therest > 0) {
+		// Set to_write to the remaining amount of bytes (therest) or buffer size of zero_buff, whichever is smaller
+		long to_write = therest < (long)sizeof(zero_buf) ? therest : (long)sizeof(zero_buf);
+		if (fwrite(zero_buf, 1, to_write, fp) != (size_t)to_write) {
+			fprintf(stderr, "Write error while zeroing %s\n", input_path);
+			fclose(fp);
+			return -1;
+		}
+		therest -= to_write;
+	}
+	
+	fflush(fp);
+	fclose(fp);
+	
+	if (remove(input_path) != 0) {
+		perror(input_path);
+		return -1;
+	}
+	return 0;
+}
+
 /* Buffer encryption AES-256-CBC
  * Buffer is padded to AES_BLOCK_SIZE
  * IV is modified during this phase so storage of IV must happen before this
@@ -284,4 +320,3 @@ unsigned char *decryptBuffer(unsigned char *buffer, long len, unsigned char *key
 
 int main(int argc, char *argv[]) {
 }
-
