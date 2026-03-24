@@ -262,7 +262,7 @@ static int get_salt(const char *hex, unsigned char *salt) {
  */
 static int zero_file(const char *input_path, long filelen) {
 	FILE *fp = fopen(input_path, "r+b");
-	if !(fp) return -1;
+	if (!fp) return -1;
 		
 	// Write zeros over entire file contents
 	unsigned char zero_buf[4096] = {0};
