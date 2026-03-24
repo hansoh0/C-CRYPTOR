@@ -42,10 +42,10 @@ void test_zero_file_removes(void) {
  * Tests if a file with no data is completely removed after zero_file()
  */
 void test_zero_file_empty(void) {
-        // Create temporary file in wb mode
-        const char *tmpf = "/tmp/test_zero_file_empty.txt";
-        FILE *fp = fopen(tmpf, "wb");
-        CU_ASSERT_PTR_NOT_NULL_FATAL(fp);
+    // Create temporary file in wb mode
+    const char *tmpf = "/tmp/test_zero_file_empty.txt";
+    FILE *fp = fopen(tmpf, "wb");
+    CU_ASSERT_PTR_NOT_NULL_FATAL(fp);
 	fclose(fp);
 
 	CU_ASSERT(zero_file(tmpf, 0) == 0);
