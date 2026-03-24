@@ -203,6 +203,54 @@ static int collect_files(const char *path, FileList *fl) {
 	return -1;
 }
 
+/*
+ * build_output_path():
+ * 
+ * char input_path: path to the input file
+ * int encrypt: encrypt/decrypt mode
+ * char output_path: buffer to store resulting path
+ * size_t output_size: the buffer size of output_path
+ *
+ * builds the full path of the output file for writing
+ * returns 0 on success, -1 on error
+ */
+static int build_output_path(const char *input_path, int encrypt, char *output_path, size_t output_size) {
+	if (encrypt) {
+		int n = snprintf(output_path, output_size, "%s.enc", input_path);
+		return (n > 0 && (size_t)n < output_size) ? 0 : -1;
+	} else {
+		size_t len = strlen(input_path);
+		if(len < 4 || strcmp(input_path + len -4, ".enc") != 0) {
+			fprintf(stderr, "Skipping %s: does not end with .enc\n", input_path);
+			return -1;
+		}
+		int n = snprintf(output_path, output_size, "%.*s", (int)(len - 4), input_path);
+		return (n > 0 && (size_t)n < output_size) ? 0 : -1;
+	}
+}
+
+/*
+ * get_salt():
+ * char hex: the hexedecimal string to be used to generate a salt
+ * char salt: the outputted salt created from the hex input
+ * 
+ * converts 32-character hex string to 16-byte salt.
+ * helps prevent rainbow table attacks
+ * returns 0 on success, -1 on error
+ */
+static int get_salt(const char *hex, unsigned char *salt) {
+	if (strlen(hex) != 32) {
+		return -1;
+	}
+	for (int i = 0; i < 16; i++) {
+		unsigned int byte;
+		if (sscanf(hex + 2 * i, "%02x", &byte) != 1) {
+			return -1;
+		}
+		salt[i] = (unsigned char)byte;
+	}
+	return 0;
+}
 
 /* Buffer encryption AES-256-CBC
  * Buffer is padded to AES_BLOCK_SIZE
