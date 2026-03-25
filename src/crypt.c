@@ -290,6 +290,89 @@ static int zero_file(const char *input_path, long filelen) {
 	return 0;
 }
 
+/*
+ * encrypt_file():
+ * 
+ * char input_path: path of the file to encrypt
+ * char output_path: path of the file where encrypted output will be written
+ * char key: derived key for encryption
+ *
+ * encrypts a given file by loading its contents into a buffer,
+ * fully removes input_path from the filesystem
+ * encrypting that buffer with encryptBuffer(),
+ * then writing out to specified output_path with [16 byte IV][8 byte little-endian encoded length of file][encrypted data]
+ */
+static int encrypt_file(const char *input_path, const char *output_path, const unsigned char *key) {
+	// Open file as binary data
+	FILE *fp = fopen(input_path, "rb");
+	if (!fp) { 
+		perror(input_path);
+		return -1;
+	}
+
+	// Retrieve file size
+	fseek(fp, 0, SEEK_END);
+	long filelen = ftell(fp);
+	rewind(fp);
+
+	// Allocate memory for 1 byte per char
+	long padded_len = pad_length(filelen);
+	unsigned char *buffer = calloc(padded_len, 1);
+	if (!buffer) {
+		fclose(fp);
+		return -1;
+	}
+
+	// Read file into buffer 1 byte per char, close file
+	fread(buffer, 1, filelen, fp);
+	fclose(fp);
+
+	zero_file(input_path, filelen);
+
+	// Generate IV
+	unsigned char iv[AES_BLOCK_SIZE];
+	RAND_bytes(iv, AES_BLOCK_SIZE);
+
+	// Copy iv and prepare for plant
+	unsigned char iv_copy[AES_BLOCK_SIZE];
+	memcpy(iv_copy, iv, AES_BLOCK_SIZE);
+
+	// Encrypt buffer
+	unsigned char *encbuff = encryptBuffer(buffer, padded_len, key, iv_copy);
+	if (!encbuff) {
+		return -1;
+	}
+
+	// Free original buffer memory
+	free(buffer);
+
+	// Open output file
+	FILE *out = fopen(output_path, "wb");
+	if (!out) {
+		perror(output_path);
+		free(encbuff);
+		return -1;
+	}
+
+	// Write out IV
+	fwrite(iv, 1, AES_BLOCK_SIZE, out);
+
+	// Write original length of file little-endian
+	unsigned char len_bytes[8];
+	long tmp = filelen;
+	for (int i = 0; i < 8; i++) {
+		len_bytes[i] = tmp & 0xFF;
+		tmp >>= 8;
+	}
+	fwrite(len_bytes, 1, 8, out);
+
+	// Write encrypted buffer
+	fwrite(encbuff, 1, padded_len, out);
+	fclose(out);
+	free(encbuff);
+	return 0;
+}
+
 /* Buffer encryption AES-256-CBC
  * Buffer is padded to AES_BLOCK_SIZE
  * IV is modified during this phase so storage of IV must happen before this
