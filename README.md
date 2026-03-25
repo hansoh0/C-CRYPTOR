@@ -1,10 +1,10 @@
-A file & directory encryptor written in C. This cryptor uses AES256 and encrypts files by bytes, allowing for encryption of many different types of files. created by @hansoh0 (https://www.github.com/hansoh0)
+A file & directory encryptor written in C for Linux. This cryptor uses AES256 and encrypts files by bytes, allowing for encryption of many different types of files. created by @hansoh0 (https://www.github.com/hansoh0)
 
 # Compiling & Running
 ## Compiling/Running the Cryptor
 ```
 $> make
-$> ./cryto 
+$> ./crypto 
 Usage: ./crypto <mode> <path> <secret> <salt>
  mode : encrypt | decrypt
  path : file or directory to encrypt
