@@ -325,6 +325,7 @@ static int encrypt_file(const char *input_path, const char *output_path, const u
 	fread(buffer, 1, filelen, fp);
 	fclose(fp);
 
+	// Zeroing original file before data buffer is encrypted or written out
 	zero_file(input_path, filelen);
 
 	// Generate IV
